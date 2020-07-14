@@ -16,6 +16,8 @@ type Query {
     shapeUnion: ShapeUnion!
     autobind: Autobind
     deprecatedField: String! @deprecated(reason: "test deprecated directive")
+    makeForcedResolverReachable: ForcedResolver
+    makeStatusReachable: Status
 }
 
 type Subscription {
