@@ -3,6 +3,8 @@ package transport
 import (
 	"net/http"
 
+	"github.com/99designs/gqlgen/graphql/handler/serial"
+
 	"github.com/99designs/gqlgen/graphql"
 )
 
@@ -15,7 +17,7 @@ func (o Options) Supports(r *http.Request) bool {
 	return r.Method == "HEAD" || r.Method == "OPTIONS"
 }
 
-func (o Options) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor) {
+func (o Options) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor, serial serial.Serialization) {
 	switch r.Method {
 	case http.MethodOptions:
 		w.WriteHeader(http.StatusOK)

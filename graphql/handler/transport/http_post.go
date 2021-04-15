@@ -4,6 +4,8 @@ import (
 	"mime"
 	"net/http"
 
+	"github.com/99designs/gqlgen/graphql/handler/serial"
+
 	"github.com/99designs/gqlgen/graphql"
 )
 
@@ -26,14 +28,14 @@ func (h POST) Supports(r *http.Request) bool {
 	return r.Method == "POST" && mediaType == "application/json"
 }
 
-func (h POST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor) {
+func (h POST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor, serial serial.Serialization) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var params *graphql.RawParams
 	start := graphql.Now()
 	if err := jsonDecode(r.Body, &params); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		writeJsonErrorf(w, "json body could not be decoded: "+err.Error())
+		writeJsonErrorf(w, serial, "json body could not be decoded: "+err.Error())
 		return
 	}
 	params.ReadTime = graphql.TraceTiming{
@@ -45,10 +47,10 @@ func (h POST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecu
 	if err != nil {
 		w.WriteHeader(statusFor(err))
 		resp := exec.DispatchError(graphql.WithOperationContext(r.Context(), rc), err)
-		writeJson(w, resp)
+		writeJson(w, serial, resp)
 		return
 	}
 	ctx := graphql.WithOperationContext(r.Context(), rc)
 	responses, ctx := exec.DispatchOperation(ctx, rc)
-	writeJson(w, responses(ctx))
+	writeJson(w, serial, responses(ctx))
 }

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/99designs/gqlgen/graphql/handler/serial"
+
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -26,7 +28,7 @@ func (h GET) Supports(r *http.Request) bool {
 	return r.Method == "GET"
 }
 
-func (h GET) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor) {
+func (h GET) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecutor, serial serial.Serialization) {
 	w.Header().Set("Content-Type", "application/json")
 
 	raw := &graphql.RawParams{
@@ -38,7 +40,7 @@ func (h GET) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecut
 	if variables := r.URL.Query().Get("variables"); variables != "" {
 		if err := jsonDecode(strings.NewReader(variables), &raw.Variables); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			writeJsonError(w, "variables could not be decoded")
+			writeJsonError(w, serial, "variables could not be decoded")
 			return
 		}
 	}
@@ -46,7 +48,7 @@ func (h GET) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecut
 	if extensions := r.URL.Query().Get("extensions"); extensions != "" {
 		if err := jsonDecode(strings.NewReader(extensions), &raw.Extensions); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			writeJsonError(w, "extensions could not be decoded")
+			writeJsonError(w, serial, "extensions could not be decoded")
 			return
 		}
 	}
@@ -57,18 +59,18 @@ func (h GET) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExecut
 	if err != nil {
 		w.WriteHeader(statusFor(err))
 		resp := exec.DispatchError(graphql.WithOperationContext(r.Context(), rc), err)
-		writeJson(w, resp)
+		writeJson(w, serial, resp)
 		return
 	}
 	op := rc.Doc.Operations.ForName(rc.OperationName)
 	if op.Operation != ast.Query {
 		w.WriteHeader(http.StatusNotAcceptable)
-		writeJsonError(w, "GET requests only allow query operations")
+		writeJsonError(w, serial, "GET requests only allow query operations")
 		return
 	}
 
 	responses, ctx := exec.DispatchOperation(r.Context(), rc)
-	writeJson(w, responses(ctx))
+	writeJson(w, serial, responses(ctx))
 }
 
 func jsonDecode(r io.Reader, val interface{}) error {

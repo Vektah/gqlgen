@@ -2,10 +2,11 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/99designs/gqlgen/graphql/handler/serial"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/executor"
@@ -19,12 +20,14 @@ type (
 	Server struct {
 		transports []graphql.Transport
 		exec       *executor.Executor
+		serial     serial.Serialization
 	}
 )
 
 func New(es graphql.ExecutableSchema) *Server {
 	return &Server{
-		exec: executor.New(es),
+		exec:   executor.New(es),
+		serial: serial.Default(),
 	}
 }
 
@@ -51,6 +54,10 @@ func NewDefaultServer(es graphql.ExecutableSchema) *Server {
 
 func (s *Server) AddTransport(transport graphql.Transport) {
 	s.transports = append(s.transports, transport)
+}
+
+func (s *Server) SetSerialization(serial serial.Serialization) {
+	s.serial = serial
 }
 
 func (s *Server) SetErrorPresenter(f graphql.ErrorPresenterFunc) {
@@ -93,12 +100,20 @@ func (s *Server) getTransport(r *http.Request) graphql.Transport {
 	return nil
 }
 
+func (s *Server) Marshal(v interface{}) ([]byte, error) {
+	return s.serial.Marshal(v)
+}
+
+func (s *Server) Unmarshal(data []byte, v interface{}) error {
+	return s.serial.Unmarshal(data, v)
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		if err := recover(); err != nil {
 			err := s.exec.PresentRecoveredError(r.Context(), err)
 			resp := &graphql.Response{Errors: []*gqlerror.Error{err}}
-			b, _ := json.Marshal(resp)
+			b, _ := s.Marshal(resp)
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write(b)
 		}
@@ -106,26 +121,31 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	r = r.WithContext(graphql.StartOperationTrace(r.Context()))
 
-	transport := s.getTransport(r)
-	if transport == nil {
-		sendErrorf(w, http.StatusBadRequest, "transport not supported")
+	if s.serial == nil {
+		s.sendErrorf(w, http.StatusBadRequest, "serialization not configured")
 		return
 	}
 
-	transport.Do(w, r, s.exec)
+	transport := s.getTransport(r)
+	if transport == nil {
+		s.sendErrorf(w, http.StatusBadRequest, "transport not supported")
+		return
+	}
+
+	transport.Do(w, r, s.exec, s.serial)
 }
 
-func sendError(w http.ResponseWriter, code int, errors ...*gqlerror.Error) {
+func (s *Server) sendError(w http.ResponseWriter, code int, errors ...*gqlerror.Error) {
 	w.WriteHeader(code)
-	b, err := json.Marshal(&graphql.Response{Errors: errors})
+	b, err := s.Marshal(&graphql.Response{Errors: errors})
 	if err != nil {
 		panic(err)
 	}
 	w.Write(b)
 }
 
-func sendErrorf(w http.ResponseWriter, code int, format string, args ...interface{}) {
-	sendError(w, code, &gqlerror.Error{Message: fmt.Sprintf(format, args...)})
+func (s *Server) sendErrorf(w http.ResponseWriter, code int, format string, args ...interface{}) {
+	s.sendError(w, code, &gqlerror.Error{Message: fmt.Sprintf(format, args...)})
 }
 
 type OperationFunc func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler
