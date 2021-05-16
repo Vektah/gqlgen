@@ -9,6 +9,7 @@ require (
 	github.com/gorilla/mux v1.6.1 // indirect
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/golang-lru v0.5.0
+	github.com/kevinmbeaulieu/eq-go v0.3.1
 	github.com/logrusorgru/aurora v0.0.0-20200102142835-e9ef32dff381
 	github.com/matryer/moq v0.0.0-20200106131100-75d0ddfc0007
 	github.com/mattn/go-colorable v0.1.4

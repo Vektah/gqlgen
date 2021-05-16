@@ -10,5 +10,6 @@
 /gen
 
 .idea/
+.vscode/
 *.test
 *.out
